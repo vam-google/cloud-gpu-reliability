@@ -4,6 +4,7 @@ from gpu_reliability.platforms.base import PlatformType, PlatformBase, LaunchReq
 from google.oauth2.service_account import Credentials
 from gpu_reliability.stats_logger import StatsLogger, Stat
 from google.api_core.exceptions import NotFound
+from google.api_core import retry
 from json import loads
 from gpu_reliability.logging import logger
 
@@ -38,6 +39,7 @@ class GCPPlatform(PlatformBase):
         credentials = Credentials.from_service_account_info(loads(service_account))
         self.image_client = compute_v1.ImagesClient(credentials=credentials)
         self.instance_client = compute_v1.InstancesClient(credentials=credentials)
+        self.retry = retry.Retry(initial=0.5, maximum=20, multiplier=1.5, deadline=600)
 
     @property
     def platform_type(self) -> PlatformType:
@@ -103,7 +105,7 @@ class GCPPlatform(PlatformBase):
 
         operation = self.instance_client.insert(request=create_request)
         start = time()
-        operation.result(timeout=self.create_timeout)
+        operation.result(timeout=self.create_timeout, retry=self.retry)
         create_time = time() - start
 
         self.log_operation_status(operation)
